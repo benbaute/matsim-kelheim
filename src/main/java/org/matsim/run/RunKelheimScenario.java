@@ -249,12 +249,38 @@ public class RunKelheimScenario extends MATSimApplication {
 			addRunOption(config, planOrigin);
 		}
 
+
+		adjustConfig(config);
+
 		return config;
+	}
+
+	private final int lastIteration = 150;
+	private final boolean modified  = true;
+	private final double desiredMaxSpeed = 100;
+
+	private void adjustConfig(Config config) {
+		String outputDirectory = "output/";
+		if (modified) {
+			outputDirectory += "modified";
+			outputDirectory += "-s" + desiredMaxSpeed;
+		} else {
+			outputDirectory += "unmodified";
+		}
+		config.controller().setLastIteration(lastIteration);
+		outputDirectory += "-i" + lastIteration;
+		config.controller().setOutputDirectory(outputDirectory);
+	}
+
+	private void adjustNetwork(Network network) {
+		if (modified) {
+			modifyNetwork networkModifier = new modifyNetwork();
+			networkModifier.changeNetwork(network, desiredMaxSpeed);
+		}
 	}
 
 	@Override
 	protected void prepareScenario(Scenario scenario) {
-
 		for (Link link : scenario.getNetwork().getLinks().values()) {
 			Set<String> modes = link.getAllowedModes();
 
@@ -284,6 +310,7 @@ public class RunKelheimScenario extends MATSimApplication {
 			}
 		}
 
+		adjustNetwork(scenario.getNetwork());
 	}
 
 	@Override
