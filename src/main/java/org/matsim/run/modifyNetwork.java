@@ -1,5 +1,6 @@
 package org.matsim.run;
 
+import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.TransportMode;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
@@ -7,6 +8,10 @@ import org.matsim.core.network.NetworkUtils;
 import org.matsim.core.network.io.MatsimNetworkReader;
 import org.matsim.core.network.io.NetworkWriter;
 
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.Map;
@@ -15,7 +20,7 @@ import java.util.HashMap;
 
 public class modifyNetwork {
 	private final int decimalPlaces = 2;
-	private final boolean writeNetworkFile = false;
+	private final boolean writeNetworkFile = true;
 
 	public modifyNetwork() {
 	}
@@ -37,6 +42,8 @@ public class modifyNetwork {
 		int carLinks = 0;
 		int nonCarLinks = 0;
 
+		Set<Id<Link>> modifiedLinks = new HashSet<>();
+
 		Set<String> allModes = new HashSet<>();
 		Map<Double, Integer> originalSpeeds = new HashMap<>();
 		Map<Double, Integer> modifiedSpeeds = new HashMap<>();
@@ -49,17 +56,20 @@ public class modifyNetwork {
 
 			if (modes.contains(TransportMode.car)) {
 				carLinks++;
-				double currentSpeed = l.getFreespeed();
+				double originalSpeed = l.getFreespeed();
 
 				// Round speed for counting
-				double roundedOriginal = roundTo(currentSpeed);
+				double roundedOriginal = roundTo(originalSpeed);
 				originalSpeeds.put(roundedOriginal, originalSpeeds.getOrDefault(roundedOriginal, 0) + 1);
 
 				double desiredMaxSpeedInMs = desiredMaxSpeed / 3.6; // km/h to m/s
-				if (currentSpeed > desiredMaxSpeedInMs) {
-//					double newSpeed = Math.max(desiredMaxSpeedInMs, currentSpeed / 2);
+				if (originalSpeed > desiredMaxSpeedInMs) {
+//					double newSpeed = Math.max(desiredMaxSpeedInMs, originalSpeed / 2);
 //					l.setFreespeed(newSpeed);
 					l.setFreespeed(desiredMaxSpeedInMs);
+					modifiedLinks.add(l.getId());
+					l.getAttributes().putAttribute("modified", true);
+					l.getAttributes().putAttribute("originalSpeed", originalSpeed);
 					changedLinks++;
 				}
 
@@ -71,6 +81,14 @@ public class modifyNetwork {
 			}
 		}
 
+		try (BufferedWriter writer = Files.newBufferedWriter(Paths.get("output/modified_links-s" + desiredMaxSpeed + ".txt"))) {
+			for (Id<Link> linkId : modifiedLinks) {
+				writer.write(linkId.toString());
+				writer.newLine();
+			}
+		} catch (IOException e) {
+			throw new RuntimeException(e);
+		}
 		printSpeedDistribution("Original Speeds (before changes):", originalSpeeds);
 		printSpeedDistribution("Modified Speeds (after changes):", modifiedSpeeds);
 		System.out.println("Changed links: " + changedLinks);
